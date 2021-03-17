@@ -1,0 +1,39 @@
+---
+title: "SpatCourse_diversity"
+author: "Stefano Larsen"
+date: "3/17/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T, fig.width = 5, warning = F, message=F)
+```
+
+## load packages
+```{r}
+#install.packages('hillR')
+library(hillR)
+
+library(vegan)
+library(tidyverse)
+library(FD)
+
+install.packages('MeanRarity')
+library(MeanRarity)
+
+```
+
+# Diversity measures
+
+We explore how the *classic* diversity measures relate to the *modern* hill-numbers based metrics, which reflect the *effective number of species* in the community
+
+We first simulate a community with known SAD (species abundance distribution), and calculate taxon richness, and classic Shannon, and Simpson diversity. Then we remove half of the taxa (randomly) and re-quantify diversity metrics, using both classic and hill-numbers based diversity metrics.
+
+```{r}
+
+```
+
+
+
+
+
