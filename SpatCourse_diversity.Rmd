@@ -30,10 +30,81 @@ We explore how the *classic* diversity measures relate to the *modern* hill-numb
 We first simulate a community with known SAD (species abundance distribution), and calculate taxon richness, and classic Shannon, and Simpson diversity. Then we remove half of the taxa (randomly) and re-quantify diversity metrics, using both classic and hill-numbers based diversity metrics.
 
 ```{r}
+# using the 'MeanRarity::fit_SAD' function we simulate community with 50 spp and known abundance distribution
+community1=data.frame(t(fit_SAD(rich=50, simpson = 10)$rel_abundances)); colnames(community1)=paste("sp",1:50)
 
 ```
 
+let's calculate classic Shannon and Simpson diversity
+```{r}
+diversity(community1, 'shannon')
+diversity(community1, 'simpson')
+```
+
+Now, lets remove 50% of species, randomly [like a large disturbance]
+Then calculate classic diversity for this halved community of 25 species 
+
+```{r}
+set.seed(1)
+community2=sample(community1, 25); community2=sort(community2, decreasing = T)
+diversity(community2, 'shannon')
+diversity(community2, 'simpson')
+```
+
+While the richness has declined by 50%, Shannon and Simpson diversity showed only modest decline;
+
+Let's try the same using the *effective number of species* hill-based diversity
+
+Hill-Shannon
+```{r}
+renyi(community1, scale=1, hill=T) # this would be Shannon (q=1)
+renyi(community2, scale=1, hill=T) 
+
+```
+
+So hill-Shannon declines by ~50%, mirroring the decline in species number;
+
+Let' see Hill-Simpson
+
+Hill-Simpson
+```{r}
+renyi(community1, scale=2, hill=T) # this would be Simpson (q=2)
+renyi(community2, scale=2, hill=T) 
+```
+
+The Hill-based conversion, linearises the relation between taxonomic richness and diversity, making them more comparable.
 
 
+## The same approach can be used for quantifying functional diversity
+This can be done using the *'hillR'* package
+
+
+First, verify that diversity from the 'hillR' package are the same as those calculated with vegan::renyi
+
+```{r}
+renyi(community1, scale=1, hill=T)
+hill_taxa(community1, q=1)
+```
+Yes! GOOD; Now lets see how it works on dummy communities with functional traits as well.
+
+We can generate some fake trait values for the community1 and community2 species.
+```{r}
+set.seed(1)
+comm1.trt=data.frame(trt1=rpois(50, 500), trt2=sample(1:100, 50), trt3=rgamma(50, 2,1))
+row.names(comm1.trt)= colnames(community1)# need to provide the same sp names on the trait data
+
+comm2.trt=comm1.trt[rownames(comm1.trt) %in% colnames(community2),] # subset traits for community2
+
+
+```
+
+Now we use the *hillR::hill_func* function to calculate several functional diversity metrics, including new one based on hill-numbers
+```{r}
+hill_func(community1, comm1.trt, q=1)
+hill_func(community2, comm2.trt, q=1)
+```
+
+Here the results of course depends on the trait values of the species left in community2.
+However, different patterns emerge looking at classic functional diversity measure (Q, FDis) relative to hill-based diversity measures (D_q, FD_q). Refer to *Chiu & Chao (2014) PLoS ONE* for details on these metrics
 
 
