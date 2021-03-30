@@ -1,0 +1,227 @@
+---
+title: "StatCourse_spatial"
+author: "Stefano Larsen"
+date: "3/18/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T, fig.width = 4.5, warning = F, message=F)
+```
+
+Load packages
+
+```{r}
+library(vegan)
+library(tidyverse)
+library(gstat)
+library(sp)
+library(raster)
+library(maptools)
+library(nlme)
+library(ncf)
+```
+
+
+## Exploring autocorrelation [in time & space]
+
+
+Example with temporal autocorrelation (time-series)
+
+Simulate some correlated noise with AR(1)
+```{r}
+set.seed(2)
+z<-w<-rnorm(100, sd=18)# noise; random normal with sd
+for (t in 2:100) z[t]<- 0.8 * z[t-1] + w[t]# the AR(1) process, with cor=0.8
+
+plot(z, type='l')
+```
+
+Let's simulate a time series using the autocorrelated noise.
+```{r }
+Time <- 1:100
+x <- 50 + 0.8 * Time + z # simulate time-series with autocor and noise and positive trend
+plot(x, xlab="time", type="l", main='time-series')
+```
+
+
+
+There is apparent trend. Let's examine it.
+Fit a linear model to the data (ignoring autocorrelation).
+
+```{r}
+x.lm<-lm(x~Time)
+summary(x.lm) # estimate of slope = 0.38
+# sd error of estimates: intercept=5.5 and slope=0.09
+```
+
+
+
+Linear regression assumes independence of observations and residuals. Let's check if this holds here.
+Plot autocorrelation function for model residuals.
+```{r }
+
+acf(resid(x.lm))
+```
+
+
+Let see the partial ACF of residuals plot
+```{r}
+pacf(resid(x.lm)) # partial acf shows lag-1 autocorrelation (as expected)
+```
+
+
+## This autocorrelation means that our estimation of the coefficients for timeseries trends can be biased
+
+Fitting a generalised least-square model (GLS), taking AR into account.
+What happens to the standard errors of the estimated parameters?
+The temporal trend is now bordeline significant and the SD of parameters larger
+
+```{r}
+#library(nlme)
+x.gls <- gls(x~Time, cor=corAR1(0.7)) # fitting autocorrelation of order 1 
+#(Here using cor=0.7 because we knew already)
+summary(x.gls)
+# the st errors of parameters is much larger now: intercept=12.9, slope= 0.21
+```
+
+
+
+
+Which is the "best" model? We can use the Information Criterion approach (AIC)
+```{r}
+AIC(x.lm)
+AIC(x.gls)# better suppored model (i.e. lower AIC)
+```
+
+
+Plot both model prediction. Trends are only marginally different, but the confidence intervals are larger when accounting for temporal autocorrelation. Hence the trends become non-significant at alpha=0.05.
+```{r}
+plot(x, xlab="time", type="l", main='compare models')
+abline(a=coef(x.lm)[1],b=coef(x.lm)[2], col='blue' )
+abline(a=coef(x.gls)[1],b=coef(x.gls)[2], col='red' )
+```
+
+# Spatial Autocorrelation 
+
+## Spatial structure is more complex than temporal; there are two dimensions
+
+Let's simulate some sparse coordinates [with no real meaning!]
+```{r}
+set.seed(2)
+Long.x=seq(from=100, to=120, 0.2)+rnorm(101, 0, 4)
+Lat.y=seq(20,40, 0.2)+rnorm(101, 0, 4)
+
+```
+
+Simulate some spatially structured variable (e.g. bird diversity) using the *ncf::rmvr.spa* function
+Then simulate some environmental variable correlated with latitude.
+```{r}
+#install.packages('ncf')
+#library(ncf)
+set.seed(2)
+div.ncf=rmvn.spa(Long.x, Lat.y, 12, method = "exp", nugget = 2)# we call it div.nfc
+
+div.ncf=div.ncf-min(div.ncf) # dirty trick to include only positive values
+```
+
+
+Now simulate an environmental variable
+```{r}
+set.seed(2)
+env.var=rnorm(101,3,1)# random environmental variable
+```
+
+
+And now simulate a diversity value responding to this environmental variable
+We will add spatially structured noise by adding *'div.ncf'*
+```{r}
+#div=10+2.5*env.var-0.6*env.var^2+3*div.ncf 
+
+div=10+0.8*env.var+3.5*div.ncf
+
+plot(div~ env.var, main='diversity vs env.var')
+```
+
+
+
+Put the data together, coordinates, environmental variable and diversity.
+```{r}
+bird.diversity=data.frame(Lat.y=Lat.y, Long.x=Long.x, Bird_div=div, Env.var=env.var)
+```
+
+Specify what are the coordinates, for plotting variograms.
+```{r}
+coordinates(bird.diversity)=~Long.x+Lat.y
+```
+
+Lets have a look at the variogram.
+```{r}
+plot(gstat::variogram(Bird_div~ Long.x+Lat.y , bird.diversity), main='variogram bird data')
+#Looks like there is strong autocorrelation pattern.
+#with a range around dist=7
+```
+
+Fit a simple model with no spatial correlation.
+```{r}
+model1 <- gls(Bird_div ~env.var , data = bird.diversity )
+summary(model1)
+
+```
+
+
+Check the residual variogram from the model.
+We use the *nlme::Variogram* function that works directly on model residuals
+Some clear pattern of correlated observation at short distances.
+```{r}
+plot(nlme::Variogram(model1, form = ~Long.x + Lat.y, resType = "normalized"), 
+     ylim=c(0,2), xlim=c(0,20), main='variogram non-spatial model')
+# nearby locations show rather low variation. A clear patter of spatial autocorrelation
+```
+
+Now, lets fit a gls model including Gaussian autocorrelation function.
+```{r}
+model.sp.gauss<-gls( Bird_div~ Env.var , 
+                     correlation = corGaus(form = ~Long.x + Lat.y, nugget=T), 
+                     data = bird.diversity )
+summary(model.sp.gauss) 
+# the correlation was well identified with a range=~ dist 7
+```
+
+
+And the check the residual variogram of this spatially explicit model.
+```{r}
+plot(nlme::Variogram(model.sp.gauss, form = ~Long.x + Lat.y, resType = "normalized"), 
+     ylim=c(0,2), xlim=c(0,20), main='variogram spatial model')
+#The patterns are different, and no trend with distance is evident now.
+#The spatial model took care of the residual structure
+```
+
+Which model is favored according to AIC. 
+Clear support for model2 (lower AIC).
+```{r}
+AIC(model1, model.sp.gauss)
+```
+
+
+
+We can visually compare the fits of the two model.
+Most of the apparent effect of environmental variable on bird diversity 
+seems to come from an autocorrelation process.
+
+```{r}
+plot(Bird_div~Env.var, bird.diversity, main='compare models')
+# add fit from model1 (w/o spatial autocor
+abline(a=coef(model1)[1], b=coef(model1)[2])
+#add the model fit from the gaussian autocor model
+abline(a=coef(model.sp.gauss)[1], b=coef(model.sp.gauss)[2], col="blue") 
+legend(0.5, 55, legend=c("non-sp", "spatial"),
+       col=c("black", "blue"), lty=1:1, cex=0.8)
+
+```
+
+
+
+
+
+

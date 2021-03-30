@@ -2,11 +2,11 @@
 title: "SpatCourse_diversity"
 author: "Stefano Larsen"
 date: "3/17/2021"
-output: html_document
+output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = T, fig.width = 5, warning = F, message=F)
+knitr::opts_chunk$set(echo = T, fig.width = 5.5, fig.height = 4, warning = F, message=F)
 ```
 
 ## load packages
@@ -18,7 +18,7 @@ library(vegan)
 library(tidyverse)
 library(FD)
 
-install.packages('MeanRarity')
+#install.packages('MeanRarity')
 library(MeanRarity)
 
 ```
@@ -62,7 +62,7 @@ renyi(community2, scale=1, hill=T)
 
 ```
 
-So hill-Shannon declines by ~50%, mirroring the decline in species number;
+So hill-Shannon declines by ~50% (from c.18 to c.9), mirroring the decline in species number;
 
 Let' see Hill-Simpson
 
@@ -71,8 +71,40 @@ Hill-Simpson
 renyi(community1, scale=2, hill=T) # this would be Simpson (q=2)
 renyi(community2, scale=2, hill=T) 
 ```
+hill-Simpson also declined by ~50% (from c.10 to c.5).
 
-The Hill-based conversion, linearises the relation between taxonomic richness and diversity, making them more comparable.
+### The Hill-based conversion linearises the relation between taxonomic richness and diversity, making them more comparable.
+
+We can visualise this simulating a community with 100 species [with equal abundance = 1 ind]
+```{r}
+comm1=data.frame(t(rep(1,100))); colnames(comm1)=paste("sp",1:100)# simulated community of 100 spp
+
+# calculate shannon classsic and hill-shannon for each species in the community
+shannon.test=data.frame(matrix(ncol=5, nrow=100))# matrix to hold the values
+shannon.test[,1]=seq(1,100,1)
+for(i in 1:100) shannon.test[i,2]= diversity(comm1[1:i], 'shannon')
+for(i in 1:100) shannon.test[i,3]= diversity(comm1[1:i], 'simpson')
+for(i in 1:100) shannon.test[i,4]= renyi(comm1[1:i], scale=1, hill=T)
+for(i in 1:100) shannon.test[i,5]= renyi(comm1[1:i], scale=2, hill=T)
+
+names(shannon.test)=c ('richness', 'Shannon','Simpson', 'Hill_Shannon', 'Hill_Simpson')
+
+
+```
+
+Plot classic Shannon & Simpson vs Richness
+```{r fig.width=5, fig.height=3}
+par(mfrow=c(1,2))
+plot(richness~Shannon, shannon.test, main='Shannon classic')
+plot(richness~Simpson, shannon.test, main='Simpson classic')
+```
+
+Plot Hill-Shannon & Hill-Simpson vs Richness
+```{r fig.width=5, fig.height=3}
+par(mfrow=c(1,2))
+plot(richness~Hill_Shannon, shannon.test, main='Hill Shannon')
+plot(richness~Hill_Simpson, shannon.test, main='Hill Simpson')
+```
 
 
 ## The same approach can be used for quantifying functional diversity
@@ -87,24 +119,48 @@ hill_taxa(community1, q=1)
 ```
 Yes! GOOD; Now lets see how it works on dummy communities with functional traits as well.
 
-We can generate some fake trait values for the community1 and community2 species.
+### We can generate some fake trait values for the community1 and community2 species.
 ```{r}
 set.seed(1)
-comm1.trt=data.frame(trt1=rpois(50, 500), trt2=sample(1:100, 50), trt3=rgamma(50, 2,1))
-row.names(comm1.trt)= colnames(community1)# need to provide the same sp names on the trait data
+comm1.trt=data.frame(trt1=rpois(100, 500), trt2=sample(1:100, 100), trt3=rgamma(100, 2,1))
+row.names(comm1.trt)= colnames(comm1)# need to provide the same sp names on the trait data
 
-comm2.trt=comm1.trt[rownames(comm1.trt) %in% colnames(community2),] # subset traits for community2
+#comm2.trt=comm1.trt[rownames(comm1.trt) %in% colnames(community2),] # subset traits for community2
 
 
 ```
 
-Now we use the *hillR::hill_func* function to calculate several functional diversity metrics, including new one based on hill-numbers
+Calculate the range of functional diversities provided by *hillR*, over each richness value
 ```{r}
-hill_func(community1, comm1.trt, q=1)
-hill_func(community2, comm2.trt, q=1)
+# calculate some different functional diversity metrics; use q=1 to express it as hill-shannon
+FD.test=data.frame(matrix(ncol=6, nrow=100))# matrix to hold the values
+FD.test[,1]=seq(1,100,1)
+for(i in 2:100) FD.test[i,2]= hill_func(comm1[1:i], comm1.trt[c(1:i),], q=1)[1]# Q
+for(i in 2:100) FD.test[i,3]= hill_func(comm1[1:i], comm1.trt[c(1:i),], q=1)[2]# FDis
+for(i in 2:100) FD.test[i,4]= hill_func(comm1[1:i], comm1.trt[c(1:i),], q=1)[3]# D_q
+for(i in 2:100) FD.test[i,5]= hill_func(comm1[1:i], comm1.trt[c(1:i),], q=1)[4]# MD_q
+for(i in 2:100) FD.test[i,6]= hill_func(comm1[1:i], comm1.trt[c(1:i),], q=1)[5]# FD_q
+names(FD.test)=c ('richness', 'Q', 'FDis', 'D_q', 'MD_q','FD_q')
+
 ```
 
-Here the results of course depends on the trait values of the species left in community2.
-However, different patterns emerge looking at classic functional diversity measure (Q, FDis) relative to hill-based diversity measures (D_q, FD_q). Refer to *Chiu & Chao (2014) PLoS ONE* for details on these metrics
+Let's plot the relation between number of taxa and functional diversities
+
+```{r}
+par(mfrow=c(2,2), mar = c(4, 4, 2, 2))
+
+plot(richness~Q, data=FD.test)
+plot(richness~FDis, data=FD.test)
+plot(richness~FD_q, FD.test)
+plot(richness~MD_q, FD.test)
+
+```
+
+
+
+
+Here the results of course depends on the trait values of the species .
+However, different patterns emerge looking at classic functional diversity measure (Q, FDis) relative to hill-based diversity measures (D_q: functional hill number, the effective number of equally abundant and functionally equally distinct species;  FD_q: total functional diversity, the effective total functional distance between species of the assemblage). 
+Refer to *Chiu & Chao (2014) PLoS ONE* for details on these metrics.
 
 
