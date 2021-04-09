@@ -1,13 +1,19 @@
 ---
 title: "StatCourse_spatial"
 author: "Stefano Larsen"
-date: "3/18/2021"
+date: "4/4/2021"
 output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = T, fig.width = 4.5, warning = F, message=F)
 ```
+
+
+# Exploring autocorrelation [in time & space]
+
+This script provides practical examples of how to detect and account for temporal and spatial autocorrelation in statistical models. We will do this by first simulating some autocorrelated data, and then model them.
+We will be using the **gls** function, but note that there are multiple ways for dealing with autocorrelation.
 
 Load packages
 
@@ -16,14 +22,14 @@ library(vegan)
 library(tidyverse)
 library(gstat)
 library(sp)
-library(raster)
+#library(raster)
 library(maptools)
 library(nlme)
 library(ncf)
 ```
 
 
-## Exploring autocorrelation [in time & space]
+
 
 
 Example with temporal autocorrelation (time-series)
@@ -58,14 +64,14 @@ summary(x.lm) # estimate of slope = 0.38
 
 
 Linear regression assumes independence of observations and residuals. Let's check if this holds here.
-Plot autocorrelation function for model residuals.
+Plot autocorrelation function for model residuals. This plot shows the correlation between observations' residuals at increasing lag-distance.
 ```{r }
 
 acf(resid(x.lm))
 ```
 
 
-Let see the partial ACF of residuals plot
+Let see the *partial ACF* of residuals plot. Te partial ACF shows the correlation between observations' residuals at a given lag-distance, after accounting for the effects of other lags.
 ```{r}
 pacf(resid(x.lm)) # partial acf shows lag-1 autocorrelation (as expected)
 ```
@@ -73,9 +79,10 @@ pacf(resid(x.lm)) # partial acf shows lag-1 autocorrelation (as expected)
 
 ## This autocorrelation means that our estimation of the coefficients for timeseries trends can be biased
 
-Fitting a generalised least-square model (GLS), taking AR into account.
+## Fitting a generalised least-square model (GLS), taking AR into account.
+The new bit is "cor=corAR(1)', meaning we are assuming autocor of order 1 (at lag=1).
 What happens to the standard errors of the estimated parameters?
-The temporal trend is now bordeline significant and the SD of parameters larger
+The temporal trend is now borderline significant and the SD of parameters larger
 
 ```{r}
 #library(nlme)
@@ -87,7 +94,6 @@ summary(x.gls)
 
 
 
-
 Which is the "best" model? We can use the Information Criterion approach (AIC)
 ```{r}
 AIC(x.lm)
@@ -95,7 +101,9 @@ AIC(x.gls)# better suppored model (i.e. lower AIC)
 ```
 
 
-Plot both model prediction. Trends are only marginally different, but the confidence intervals are larger when accounting for temporal autocorrelation. Hence the trends become non-significant at alpha=0.05.
+
+## Plot both model prediction. 
+Trends are only marginally different, but the confidence intervals are larger when accounting for temporal autocorrelation. Hence the trends become non-significant at alpha=0.05.
 ```{r}
 plot(x, xlab="time", type="l", main='compare models')
 abline(a=coef(x.lm)[1],b=coef(x.lm)[2], col='blue' )
@@ -104,7 +112,7 @@ abline(a=coef(x.gls)[1],b=coef(x.gls)[2], col='red' )
 
 # Spatial Autocorrelation 
 
-## Spatial structure is more complex than temporal; there are two dimensions
+## Spatial structure is more complex than temporal; there are two dimensions. This is where the Variogram can help you.
 
 Let's simulate some sparse coordinates [with no real meaning!]
 ```{r}
@@ -114,13 +122,14 @@ Lat.y=seq(20,40, 0.2)+rnorm(101, 0, 4)
 
 ```
 
-Simulate some spatially structured variable (e.g. bird diversity) using the *ncf::rmvr.spa* function
-Then simulate some environmental variable correlated with latitude.
+Simulate some spatially structured variable (e.g. bird diversity) using the **ncf::rmvr.spa** function.
+This function actually uses variogram parameters for simulating data (here p='range', and 'nugget').
+
 ```{r}
 #install.packages('ncf')
 #library(ncf)
 set.seed(2)
-div.ncf=rmvn.spa(Long.x, Lat.y, 12, method = "exp", nugget = 2)# we call it div.nfc
+div.ncf=rmvn.spa(Long.x, Lat.y, p=12, method = "exp", nugget = 2)# we call it div.nfc
 
 div.ncf=div.ncf-min(div.ncf) # dirty trick to include only positive values
 ```
@@ -129,14 +138,13 @@ div.ncf=div.ncf-min(div.ncf) # dirty trick to include only positive values
 Now simulate an environmental variable
 ```{r}
 set.seed(2)
-env.var=rnorm(101,3,1)# random environmental variable
+env.var=rnorm(101,3,1)# random environmental variable with mean= 3 and sd=1
 ```
 
 
-And now simulate a diversity value responding to this environmental variable
+And now make the simulated diversity value respond to this environmental variable
 We will add spatially structured noise by adding *'div.ncf'*
 ```{r}
-#div=10+2.5*env.var-0.6*env.var^2+3*div.ncf 
 
 div=10+0.8*env.var+3.5*div.ncf
 
@@ -150,12 +158,14 @@ Put the data together, coordinates, environmental variable and diversity.
 bird.diversity=data.frame(Lat.y=Lat.y, Long.x=Long.x, Bird_div=div, Env.var=env.var)
 ```
 
+
 Specify what are the coordinates, for plotting variograms.
 ```{r}
 coordinates(bird.diversity)=~Long.x+Lat.y
 ```
 
-Lets have a look at the variogram.
+##Lets have a look at the variogram to examine spatial patterns.
+We can use the *gstat::variogram* function to examine spatial patterns. 
 ```{r}
 plot(gstat::variogram(Bird_div~ Long.x+Lat.y , bird.diversity), main='variogram bird data')
 #Looks like there is strong autocorrelation pattern.
@@ -170,7 +180,8 @@ summary(model1)
 ```
 
 
-Check the residual variogram from the model.
+
+## Check the residual variogram from the model.
 We use the *nlme::Variogram* function that works directly on model residuals
 Some clear pattern of correlated observation at short distances.
 ```{r}
@@ -179,7 +190,13 @@ plot(nlme::Variogram(model1, form = ~Long.x + Lat.y, resType = "normalized"),
 # nearby locations show rather low variation. A clear patter of spatial autocorrelation
 ```
 
-Now, lets fit a gls model including Gaussian autocorrelation function.
+
+
+
+## Now, lets fit a *gls model* including Gaussian autocorrelation function.
+The new bit: "correlation = corGauss (...)". 
+*You can check GLS help to see other correlation structures*.
+NOTE: convergence problems can occur. 
 ```{r}
 model.sp.gauss<-gls( Bird_div~ Env.var , 
                      correlation = corGaus(form = ~Long.x + Lat.y, nugget=T), 
@@ -196,6 +213,9 @@ plot(nlme::Variogram(model.sp.gauss, form = ~Long.x + Lat.y, resType = "normaliz
 #The patterns are different, and no trend with distance is evident now.
 #The spatial model took care of the residual structure
 ```
+
+
+
 
 Which model is favored according to AIC. 
 Clear support for model2 (lower AIC).
@@ -221,7 +241,14 @@ legend(0.5, 55, legend=c("non-sp", "spatial"),
 ```
 
 
+## This was just a rather extreme simulated example. You can play with your data if these have coordinates, that is spatially-explicit data.
 
 
+## Excercises you can also try yourself:
+
+* What happens if you simulate bird.div ('div') without adding the spatially structured noise (i.e. adding 'rnorm ()' instead of 'div.nfc')?
+
+* How does the variogram look like in this case?
+* Would the use spatial gls model still be justified?
 
 
