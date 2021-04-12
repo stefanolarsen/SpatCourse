@@ -7,6 +7,7 @@ output: pdf_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = T, fig.width = 5,  fig.height = 4.5, warning = F, message=F)
+
 ```
 
 # Simulate landscapes with different spatial patterns
