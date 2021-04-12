@@ -1,0 +1,377 @@
+---
+title: "SpatCourse_SSN1"
+author: "Stefano Larsen"
+date: "3/22/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T, fig.width = 5.5, warning = F, message=F)
+```
+
+
+# Scripts and examples for visualising and analysing Spatial Stream Network models (SSN)
+
+These scripts provide introductory examples on how to deal with .ssn objects in R.
+We will work with a ready-available .ssn object in .RData format. You can download this from:
+*https://github.com/stefanolarsen/SpatCourse*
+The dataset include macroinvertebrates community data across the Adige River network (NE Italy). Environmental descriptors, diversity and feeding-trait metrics are included. For details see:
+**Larsen et al 2019 - Testing the river continuum concept with geo-statistical stream network models**. *Ecological Complexity.* https://doi.org/10.1016/j.ecocom.2019.100773
+
+## Load the key libraries.
+```{r}
+library(SSN)
+library(tidyverse)
+#library(gtools)
+```
+
+
+## Load the RData with the SSN object (stream invertebrates from Adige River network)
+You must first download this .RData object from the *https://github.com/stefanolarsen/SpatCourse*.
+Then modify the code below to include your path (where you downloaded the file).
+```{r}
+load("~/Documents/SpatCoursePT/SpatCourse/spat.course.ssn1.RData")
+
+#gitUrl='https://github.com/stefanolarsen/SpatCourse/blob/main/bent.ssn.logit.RData'
+```
+
+
+
+## Create the distance matrices. 
+These are non-orthodox distance matrices. See help for details.
+Distance matrix is important for modelling later!
+```{r}
+createDistMat(spat.course.ssn)
+```
+
+## Now that you have the .ssn object imported, you can explore it.
+
+Spatial objects can be explored with *summary*.
+
+```{r}
+summary(spat.course.ssn)
+```
+
+
+## Explore the variables in the data only.
+Here there are diversity metrics (richness, shannon).
+Other descriptors e.g. T_wat (water T), LIMeco (water quality index).
+Other variables (netID, ratio) come from the process leading to the SSN file, from GIS.
+## An important variable is *afvArea* (the additive function based on catchment area), use for weighting the correlation function at river juntions.
+```{r}
+names(spat.course.ssn)
+
+```
+
+## Explore plotting functions
+
+Simple *plot* function can also work. You see the network and the sampling points.
+```{r}
+plot(spat.course.ssn, asp=1, cex=0.5)
+```
+
+
+### Nicer option for plotting; can weight the line width by catchment area.
+The option here is: 'lwdLineCol=afvArea'.
+```{r}
+plot(spat.course.ssn, lwdLineCol = "afvArea", lwdLineEx = 6, lineCol = "blue",
+   pch = 1, xlab = "x-coordinate (m)", ylab = "y-coordinate (m)",
+   asp = 1)
+
+```
+
+## Exploring patterns in specific variables
+
+You can also plot specific variable values, with color classes (defined in 'nclasses'). 
+Here e.g. the % of agricultural land-use around each site (buf.agr.p).
+```{r}
+plot(spat.course.ssn, 'buf.agr.p',, lwdLineCol = "afvArea", lwdLineEx = 6, lineCol = "blue",
+     pch = 1, xlab = "x-coordinate (m)", ylab = "y-coordinate (m)",
+   asp = 1, nclasses=5, main='% agric landuse')
+
+```
+
+Or plot the water temperature (T_wat).
+```{r}
+plot(spat.course.ssn, 'T_wat',, lwdLineCol = "afvArea", lwdLineEx = 6, lineCol = "blue",
+   pch = 1, xlab = "x-coordinate (m)", ylab = "y-coordinate (m)",
+   asp = 1, nclasses=8, main='water T')
+
+```
+
+
+
+# Manipulate the data frames inside a SSN object
+In this example you need to:
+e.g. Fill NAs in the water quality index: LIMeco
+Re-transform "logit"-transformed traits to proportions for some traits values.
+
+
+## Extract dataframe from ssn object.
+This command extract the data matrix from the ssn object. 
+We can work on it, and then put it back into a ssn object.  This is useful if we need to modify or add data to our dataframe.
+```{r}
+datassn=getSSNdata.frame(spat.course.ssn)
+```
+
+## Work on the dataframe. Explore structure.
+This is now like a standard dataframe in R.
+
+```{r}
+str(datassn)
+#some feeding traits proportions are expressed as logit (e.g feed_xyl)
+#we can convert it back to proportions if we want.
+```
+
+Look for missing values
+```{r}
+sum(is.na(datassn$LIMeco)) 
+# there are missing values in LIMeco
+```
+
+We can fill missing values in LIMeco with overall mean.
+```{r}
+datassn$LIMeco[is.na(datassn$LIMeco)]<- mean(datassn$LIMeco, na.rm=T)# 
+```
+
+
+
+Just a function to transform logit back to proportion of some feeding traits.
+
+*delogit function*: convert logit transformed proportions back to proportions
+```{r}
+delogit=function(x){
+  x1=exp(x)
+  prop=x1/(1+x1)
+  return(prop)
+}
+```
+
+Convert these traits back to proportions.
+```{r}
+datassn$feed_oth=delogit(datassn$feed_oth)
+datassn$feed_xyl=delogit(datassn$feed_xyl)
+```
+
+
+
+## Then we create a second SSN object with the new modified dataframe.
+We can call it the same way for convenience (overwrite the existing one).
+```{r}
+spat.course.ssn=putSSNdata.frame(datassn, spat.course.ssn)
+#save(spat.course.ssn, file='SpatCourse.ssn.RData')
+```
+
+To specifically explore the data within a SSN object:access the slots using *@*
+```{r}
+head(spat.course.ssn@obspoints@SSNPoints[[1]]@point.data)
+```
+$$\\[0.9in]$$
+
+
+## Exploring variograms for river networks. the *Torgegram*
+
+Explore default *torgegrams*.
+SSN package offers this default plots for exploring variograms.
+It shows the variance for flow-connected and flow-unconnected observation pairs.
+The size of the spots reflect the #observation pairs for each distance lag.
+Here an example of torgegram for 'shannon diversity'. *Clearly different spatial patterns for flow-connected and unconnected locations.*
+```{r}
+tor.shn=Torgegram(spat.course.ssn, 'shannon', nlag = 50, maxlag = 400000)
+plot(tor.shn)
+```
+
+
+### Let's see how the torgegram object looks like.
+It shows the distance lags, the variance ('gam') and the n. of observation pairs within the lag ('np').
+And it does so for flow-connected and unconnected locations.
+```{r}
+tor.shn
+```
+
+
+
+# Variograms can be better examined including the three distance types.
+Exploring the shapes of variograms over the Euclidean, flow-unconnected and flow-connected dimensions provide more insight into the main spatial patterns of the data.
+
+
+## Let's examine the variogram for water T, along the three distances.
+```{r}
+# first the classic variogram over Euclidean dist
+emp.var.wt=EmpiricalSemivariogram(spat.course.ssn, 'T_wat', nlag = 30, maxlag = 200000)
+#then the torgegram for flow-connected and unconnected dist
+tor.wt=Torgegram(spat.course.ssn, 'T_wat', nlag = 50, maxlag = 400000)
+```
+
+Plot all distances together
+```{r}
+plot(tor.wt$gam.unconnect[1:20]~tor.wt$distance.unconnect[1:20], options(scipen = 5), 
+     type='b', lty=1, pch=19, ylim=c(0,15), col='blue', ylab='Semivariance T_wat', 
+     xlab='Distance (m)', cex.lab=1, las=1)
+
+lines(tor.wt$gam.connect[1:13]~tor.wt$distance.connect[1:13], type='b', col='purple', 
+      lty=3, pch=19)
+lines(emp.var.wt$gamma[1:23]~emp.var.wt$distance[1:23],col='orange',  type='b', 
+      pch=19, lty=3 )
+legend(100, 14, legend=c("Eucl", "F-con", 'F-unc'),
+       col=c("orange", "purple", 'blue'), lty=c(1,1,1), lwd=2,  cex=0.7)
+
+
+```
+
+### The above plot shows that, for a given distance, water T varies little over the watercourse dimension, and more over the Euclidean dimension, but only beyond 50 km distance.
+
+## Now let's examine the variogram for local land-use
+```{r}
+# first variogram along the Euclidean dimension
+emp.var.agr=EmpiricalSemivariogram(spat.course.ssn, 'buf.agr.p', nlag = 30, maxlag = 200000)
+# then the torgegram over flow-connected and unconnected distances
+tor.agr=Torgegram(spat.course.ssn, 'buf.agr.p', nlag = 50, maxlag = 400000)
+```
+
+Plot it together
+```{r}
+plot(tor.agr$gam.unconnect[1:20]~tor.agr$distance.unconnect[1:20], options(scipen = 5), 
+     type='b', lty=1, pch=19, ylim=c(0,1600 ), col='blue', ylab='Semivariance agr. landuse', 
+     xlab='Distance (m)', cex.lab=1, las=1)
+
+lines(tor.agr$gam.connect[1:13]~tor.agr$distance.connect[1:13], type='b', 
+      col='purple', lty=3, pch=19)
+lines(emp.var.agr$gamma[1:23]~emp.var.agr$distance[1:23],col='orange',  
+      type='b', pch=19, lty=3 )
+legend(100, 1500, legend=c("Eucl", "F-con", 'F-unc'),
+       col=c("orange", "purple", 'blue'), lty=c(1,1,1), lwd=2,  cex=0.7)
+
+# Here we see that local landuse varies more rapidly along flow-connected locations
+# reflecting the changes from headwaters to mainstems
+```
+
+### The above variogram show that agricultural landuse changes rapidly along flow-connected locations, reflecting changes from up to downstream within ~50km.
+
+
+## As extreme case, we can explore the variogram for the variable *PCA1.long*. This is a synthetic variable refelecting the logitudinal continuum. As expected, the variance increases along flow-connected locations, but remains low over the other dimensions.
+```{r}
+# first the variogram for Euclidean and then the Torgegram
+emp.var.PCA1=EmpiricalSemivariogram(spat.course.ssn, 'PCA1.long', nlag = 30, maxlag = 200000)
+tor.PCA1=Torgegram(spat.course.ssn, 'PCA1.long', nlag = 50, maxlag = 400000)
+```
+Plot it together as before
+```{r}
+plot(tor.PCA1$gam.unconnect[1:20]~tor.PCA1$distance.unconnect[1:20], options(scipen = 5), 
+     type='b', lty=1, pch=19, ylim=c(0,8), col='blue', ylab='Semivariance PCA1', 
+     xlab='Distance (m)', cex.lab=1, las=1)
+
+lines(tor.PCA1$gam.connect[1:13]~tor.PCA1$distance.connect[1:13], type='b', col='purple', 
+      lty=3, pch=19)
+lines(emp.var.PCA1$gamma[1:23]~emp.var.PCA1$distance[1:23],col='orange',  type='b', 
+      pch=19, lty=3 )
+
+legend(100, 7, legend=c("Eucl", "F-con", 'F-unc'),
+       col=c("orange", "purple", 'blue'), lty=c(1,1,1), lwd=2,  cex=0.7)
+```
+
+$$\\[0.7in]$$
+
+
+# Now let's run some models. Explore the influence of key environmental drivers on macroinvertebrate metrics.
+## First, have a look again at the variables in the data; 
+```{r}
+names(spat.course.ssn)
+```
+
+
+### As example, we fit models for the porportion of shredders (*feed_shr*) in the community. 
+### We will include the longitudinal gradient (*PCA1.long*), the % of agricultural landuse (*buf.agr.p*) and water quality (*LIMeco*), as predictor (covariates).
+
+#### Start with a non-spatial model (CorModels=NULL). This is equivalent to a classic lm.
+```{r}
+shr.0=glmssn(feed_shr~PCA1.long+buf.agr.p+LIMeco,spat.course.ssn,
+             CorModels = NULL, use.nugget = TRUE,EstMeth = "ML")             
+
+summary(shr.0)
+```
+
+We see that both landuse and water quality are important factors.
+
+
+
+### Now we can fit some spatial models. We start with the full autocovariance functions (Euclidean, Tail.up, Tail.down).
+```{r}
+shr.1=glmssn(feed_shr~PCA1.long+buf.agr.p+LIMeco,spat.course.ssn,
+             CorModels = c("Exponential.tailup", "Exponential.taildown",
+   "Exponential.Euclid"), addfunccol = "afvArea", EstMeth = "ML")
+
+summary(shr.1)
+```
+
+Here we see a different output. The variogram parameters for each autocovariance functions are also given. We also see that the model parameters (*Estimate, Std.Error*) are different from the non-spatial model. We also see that the Sill of the tail.down component is very small. We could eventually omit it from the model.
+
+
+## Model selection is a stepwise process. Once we are happy with the covariates (the fixed effect), we can work on the autocorrelation structures. 
+### Here we fit a couple of additional models with different variogram functions.
+
+
+```{r}
+shr.2=glmssn(feed_shr~PCA1.long+buf.agr.p+LIMeco,spat.course.ssn,
+             CorModels = c( "LinearSill.tailup",
+   "Exponential.Euclid"), addfunccol = "afvArea", EstMeth = "ML")
+
+#summary(shr.2)
+```
+
+```{r}
+shr.3=glmssn(feed_shr~PCA1.long+buf.agr.p+LIMeco,spat.course.ssn,
+             CorModels = c( "Exponential.tailup"), addfunccol = "afvArea", EstMeth = "ML")
+
+#summary(shr.3)
+```
+
+
+```{r}
+shr.4=glmssn(feed_shr~PCA1.long+buf.agr.p+LIMeco,spat.course.ssn,
+             CorModels = c( "Exponential.Euclid"), addfunccol = "afvArea", EstMeth = "ML")
+
+#summary(shr.4)
+```
+
+
+### We can then use the command *InfoCritCompare* to compare the different models for e.g. Root Mean Square Prediction Error (RMSPE) and AIC.
+```{r}
+InfoCritCompare(list(shr.0, shr.1, shr.2, shr.3, shr.4))
+```
+
+### We can print specific values for clarity (e.g. Spatial components, AIC, RMSPE)
+```{r}
+InfoCritCompare(list(shr.0, shr.1, shr.2, shr.3, shr.4))[,c(3,5,8,12)]
+```
+
+## We see that spatial models including tail-up and/or tail-down (accounting for river topology) provide better predictions (lower RMSPE) than simple non-spatial model (shr.0), or models that only include Euclidean component (shr.4).
+
+
+### The *varcomp* function provide information on the variance components of the model (covariates + spatial components)
+```{r}
+varcomp(shr.2)
+```
+
+In the model *shr.2*, the included covariates (PCA1.long, Limeco, Buf.agr.p) explained 34% of variation. The tail-up autocovariance (reflecting correlation along flow-connected locations) accounted for 13% of variation, while the Euclidean covariance for 27%. The Nugget reflects the unexplained variance (with no spatial structure).
+
+
+### We can also plot the residuals of the model easily; this helps visualising spatial patterns in the residuals.
+```{r}
+plot(resid(shr.2), asp=1, cex=0.5)
+```
+
+
+
+
+$$\\[0.7in]$$
+
+
+# Excerice that you can try yourself:
+
+* Plot additional variograms for other variables (e.g. Limeco, Shannon)
+* Fit models for the proportion of predators (*feed_pre*) using the same covariates used before.
+* Try to fit both non-spatial and spatial models (with different covariance functions).
+* Compare the models using *InfoCritCompare*.
+
+

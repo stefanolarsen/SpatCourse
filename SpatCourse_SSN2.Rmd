@@ -1,0 +1,209 @@
+---
+title: "SpatCourse_SSN2"
+author: "Stefano Larsen"
+date: "4/8/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width = 6, warning = F, message=F)
+```
+
+Load libraries
+```{r}
+library(SSN)
+```
+
+
+# Tutorial with the ready-available spatial data in SSN R package
+Note: part of these examples come from the original SSN vignette!
+
+### In this script we will use the Middle Fork river data to fit models for mean summer water T. Then we will predict mean temperature across a range of un-sampled locations across the river network.
+
+## Import the ssn file from the SSN R package system file
+```{r}
+mf04p <- importSSN(system.file("lsndata/MiddleFork04.ssn",
+   package = "SSN"), predpts = "pred1km", o.write = TRUE)
+```
+
+### You can also import specific set of locations for which we want to make predictions.
+This is done using the *importPredpts* comand.
+```{r}
+mf04p <- importPredpts(mf04p, "Knapp", "ssn")
+mf04p <- importPredpts(mf04p, "CapeHorn", "ssn")
+
+```
+
+### We explore the mf04p SSN object.
+It shows four groups of variables: the observed, and three sets of prediction locations.
+```{r}
+mf04p
+```
+
+
+
+### Creating distance matrices is necessary
+```{r}
+createDistMat(mf04p, predpts = "Knapp", o.write = TRUE,
+	amongpreds = TRUE)
+createDistMat(mf04p, predpts = "CapeHorn", o.write = TRUE,
+	amongpreds = TRUE)
+```
+
+
+## Let's plot our data
+```{r}
+plot(mf04p, lwdLineCol = "afvArea", lwdLineEx = 6, lineCol = "blue",
+   pch = 19, xlab = "x-coordinate (m)", ylab = "y-coordinate (m)",
+   asp = 1)
+
+```
+
+## This chunk must be run all at once inside the .Rmd script.
+Alternatively, run each line directly in the console.
+
+### Here we first plot the rivers as spatial lines object. Then we plot the locations with observed data. Then we plot three sets of prediction points. The first is a diffuse 1-km apart prediction across the networks. The second (Knapp) and third (CapeHorn) are dense sets of prediction points used for *block-kriging'.
+```{r}
+#plot as spatial lines object
+plot(as.SpatialLines(mf04p), col = "blue",
+	lwd = 1+ log(1+ mf04p@data$afvArea)*6)
+
+# add the observed locations with size proportional
+# to mean summer temperature
+plot(as.SpatialPoints(mf04p), pch = 19,
+cex = as.SpatialPointsDataFrame(mf04p)$Summer_mn/15 , add = TRUE)
+
+# add the prediction locations on the 1 km spacing
+plot(as.SpatialPoints(mf04p, data = "pred1km"),
+	cex = 1, add = TRUE, pch = 1)
+
+# add the dense set of points for block prediction on Knapp segment
+plot(as.SpatialPoints(mf04p, data = "Knapp"), pch = 19, cex = 0.3,
+  col = "red", add = TRUE)
+# add the dense set of points for block prediction on CapeHorn segment
+plot(as.SpatialPoints(mf04p, data = "CapeHorn"), pch = 19, cex = 0.3,
+  col = "Gold3", add = TRUE)
+```
+
+## We can have a look at the values of mean summer T. 
+Use *nclasses* to create break points for plotting.
+```{r}
+plot(mf04p, 'Summer_mn',, lwdLineCol = "afvArea", lwdLineEx = 6, lineCol = "blue",
+   pch = 1, xlab = "x-coordinate (m)", ylab = "y-coordinate (m)",
+   asp = 1, nclasses=8, main='Summer T')
+```
+
+### As always is good to have a look at the Torgegram.
+We see that autocorrelation in water Tis high among flow-connected locations (lower variances), while flow-unconnected locations have larger variances.
+```{r}
+tor.summer_mn<- Torgegram(mf04p, "Summer_mn", nlag = 20, maxlag = 40000)
+plot(tor.summer_mn)
+```
+
+
+# We can now fit some models
+
+### We start by fitting a non-spatial models for summer T using elevation and slope as covariates
+The summary shows that both elevation and slope are important covariates, explaining summer T.
+```{r}
+mf04.glmssn0 <- glmssn(Summer_mn ~ ELEV_DEM + SLOPE, mf04p,
+   CorModels = NULL, use.nugget = TRUE)
+summary(mf04.glmssn0)
+```
+
+
+### Then we can fit a spatial models including all autocovariance functions.
+The summary shows that, in the spatial model, slope is not significant anymore. This happens often that spatial models have less frequent significant predictors.
+```{r}
+mf04.glmssn1 <- glmssn(Summer_mn ~ ELEV_DEM + SLOPE, mf04p,
+   CorModels = c("Exponential.tailup", "Exponential.taildown",
+      "Exponential.Euclid"), addfunccol = "afvArea")
+summary(mf04.glmssn1)
+
+```
+### We can fit another model excluding the effect of slope.
+```{r}
+mf04.glmssn2 <- glmssn(Summer_mn ~ ELEV_DEM , mf04p,
+   CorModels = c("Exponential.tailup", "Exponential.taildown",
+      "Exponential.Euclid"), addfunccol = "afvArea")
+
+summary(mf04.glmssn2)
+
+```
+
+### We fit a third model, this timee exlcuding the Euclidean autocovariance function.
+```{r}
+mf04.glmssn3 <- glmssn(Summer_mn ~ ELEV_DEM , mf04p,
+   CorModels = c("Exponential.tailup", "Exponential.taildown"), addfunccol = "afvArea")
+summary(mf04.glmssn3)
+```
+
+
+## We compare the different models in terms of RMSPE, AIC and COV.90
+It looks like *mf04.glmssn1* is the best model among these.
+```{r}
+InfoCritCompare(list(mf04.glmssn0,mf04.glmssn1,mf04.glmssn2, mf04.glmssn3 ))[,c(3,5,8,12)]
+```
+
+## Let's explore the residuals
+The result of the residuals function is an `influenceSSN' object, which is
+an exact copy of the `glmssn' object, except that residual diagnostics are appended as new
+columns to the data frame point.data containing the observed data. The default plotting
+method for an `influenceSSN' object is a map with color-coded raw residuals.
+```{r}
+# get the residuals from the model
+mf04.resid1 <- residuals(mf04.glmssn1)
+# Explore the new variables appended to the data
+names(getSSNdata.frame(mf04.resid1))
+#simple plot of residuals
+plot(mf04.resid1)
+```
+
+### The residual plot shows that some locations have rather large residual values (< -3). We could eventually remove these outliers. For now we carry on using all the data points.
+
+
+# We can now make predictions of summer T, using the model we have fitted.
+## First we predict over the range of locations across the networks. These are the points data *pred1km*.
+```{r fig.height=4}
+mf04.pred1km <- predict(mf04.glmssn1, "pred1km")
+plot(mf04.pred1km, SEcex.max = 1, SEcex.min = .3, nclasses=5)
+
+```
+
+## Then we can also make block predictions, over a range of adjacent points along a river reach. here are the points along the *Knapp* river.
+
+```{r}
+# Plot zooming to the 'Knapp' river where predictions are needed
+plot(mf04p, "Summer_mn", pch = 1, cex = 3,
+   xlab = "x-coordinate", ylab = "y-coordinate",
+   xlim = c(-1511000,-1500000), ylim = c(2525000,2535000))
+
+#Run the predictions using the 'Knapp' prediction locations
+mf04.glmssn1.Knapp <- predict(mf04.glmssn1, "Knapp")
+
+#The plot it
+plot(mf04.glmssn1.Knapp, "Summer_mn", add = TRUE,
+   xlim = c(-1511000,-1500000), ylim = c(2525000,2535000))
+```
+
+$$\\[1.1in]$$
+
+# We have modelled water temperature using gaussian distribution (the default).
+
+## However, the glmssn allows different distribution of the response variable, including binomial and poisson (counts).
+
+The mf04p dataset also contains a variable (*C16*) reporting the number of days the water T was above 16C. This is therefore a *count* variable that can be modelled using a poisson distribution. 
+
+### Here is the variable *C16*
+```{r}
+mf04p@obspoints@SSNPoints[[1]]@point.data$C16
+```
+
+
+### In SSN we can include the line: family = "poisson" in the *glmssn* call,  as in standard *glm* models.
+
+## You can try yourself:
+
+* fit a poisson model for the variable *C16* using again elevation and slope as covariates.
+* select the most supported model (including or excluding covariates, changing the autocovariance functions).
+* predict the *C16* over the prediction locations using your model.
