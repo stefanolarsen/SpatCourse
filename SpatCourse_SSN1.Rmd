@@ -171,6 +171,7 @@ $$\\[0.9in]$$
 
 ## Exploring variograms for river networks. the *Torgegram*
 
+
 Explore default *torgegrams*.
 SSN package offers this default plots for exploring variograms.
 It shows the variance for flow-connected and flow-unconnected observation pairs.
