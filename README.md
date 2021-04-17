@@ -8,4 +8,5 @@ There are several .Rmd script files prepared for the Advanced Course in Biodiver
 - SpatCourse_spatial2.Rmd - With examples for simulating different autocorrelated landscapes and exploring patterns with variograms.
 - SpatCourse_SSN1 - Spatial Stream Network models examples using the Adige River data; Fitting variograms and models.
 - SpatCourse_SSN2 - SSN examples using the SSN package data; Fitting models, and making predictions.
+- SpatCourse.ssn.RData - an R dataset with spatial data from the Adige river networks as .ssn object (Spatial Stream Network).
 
