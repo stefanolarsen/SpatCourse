@@ -369,7 +369,7 @@ $$\\[0.7in]$$
 
 
 # Excercise that you can try yourself:
-
+  
 * Plot additional variograms for other variables (e.g. Limeco, Shannon)
 * Fit models for the proportion of predators (*feed_pre*) using the same covariates used before.
 * Try to fit both non-spatial and spatial models (with different covariance functions).
