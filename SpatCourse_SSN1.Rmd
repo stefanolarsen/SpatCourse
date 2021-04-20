@@ -368,7 +368,7 @@ plot(resid(shr.2), asp=1, cex=0.5)
 $$\\[0.7in]$$
 
 
-# Excerice that you can try yourself:
+# Excercise that you can try yourself:
 
 * Plot additional variograms for other variables (e.g. Limeco, Shannon)
 * Fit models for the proportion of predators (*feed_pre*) using the same covariates used before.
