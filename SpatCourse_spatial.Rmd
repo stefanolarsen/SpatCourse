@@ -244,11 +244,27 @@ legend(0.5, 55, legend=c("non-sp", "spatial"),
 ## This was just a rather extreme simulated example. You can play with your data if these have coordinates, that is spatially-explicit data.
 
 
-## Excercises you can also try yourself:
+# Excercises you can also try yourself:
 
 * What happens if you simulate bird.div ('div') without adding the spatially structured noise (i.e. adding 'rnorm ()' instead of 'div.nfc')?
 
 * How does the variogram look like in this case?
 * Would the use spatial gls model still be justified?
+
+### TIP
+To simulate another diversity variable related to *env.var*, but without the spatial structure try e.g.
+
+```{r}
+div_nsp=10+0.8*env.var+rnorm(10,5) # here called as diversity non spatial (nsp)
+```
+
+You can then add this variable to the *bird.diversity* dataframe created previously. You can explore patterns in the variogram as done in line ~170. 
+
+### TIP
+To add the newly created variable into the *bird.diversity* dataframe, simply:
+```{r}
+bird.diversity$div.nsp
+```
+
 
 

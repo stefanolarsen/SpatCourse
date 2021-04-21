@@ -16,7 +16,6 @@ knitr::opts_chunk$set(echo = T, fig.width = 5,  fig.height = 4.5, warning = F, m
 
 
 ```{r}
-library(vegan)
 library(tidyverse)
 library(gstat)
 library(sp)
@@ -153,7 +152,12 @@ $$\\[0.5in]$$
 
 
 * variogram assumes **isotropy**. That is, the strength and pattern of autocorrelation is the same in all directions. Try to plot variograms of the landscapes showing correlation over different directions. 
-*Hint*: use "alpha=c(0,45,90...etc)" inside the variogram function to provide the *angles* of directions.
+
+### TIP
+use "alpha=c(0,45,90...etc)" inside the *gstat::variogram* function to provide the *angles* of directions.
+e.g. gstat::variogram(sim1~1, d2, alpha=c(0,45,90,135))
+
+
 
 
 
