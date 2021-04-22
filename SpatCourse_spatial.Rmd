@@ -32,7 +32,7 @@ library(ncf)
 
 
 
-Example with temporal autocorrelation (time-series)
+## Example with temporal autocorrelation (time-series)
 
 Simulate some correlated noise with AR(1)
 ```{r}
@@ -249,7 +249,7 @@ legend(0.5, 55, legend=c("non-sp", "spatial"),
 * What happens if you simulate bird.div ('div') without adding the spatially structured noise (i.e. adding 'rnorm ()' instead of 'div.nfc')?
 
 * How does the variogram look like in this case?
-* Would the use spatial gls model still be justified?
+* Would the use spatial gls model still be justified? 
 
 ### TIP
 To simulate another diversity variable related to *env.var*, but without the spatial structure try e.g.
@@ -266,5 +266,6 @@ To add the newly created variable into the *bird.diversity* dataframe, simply:
 bird.diversity$div.nsp
 ```
 
-
+### TIP
+Fit a gls without and with spatial components on the new variable. Use the examples already provided, and compare the models using AIC.
 

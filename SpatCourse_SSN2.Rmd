@@ -107,7 +107,7 @@ plot(tor.summer_mn)
 The summary shows that both elevation and slope are important covariates, explaining summer T.
 ```{r}
 mf04.glmssn0 <- glmssn(Summer_mn ~ ELEV_DEM + SLOPE, mf04p,
-   CorModels = NULL, use.nugget = TRUE)
+   CorModels = NULL, use.nugget = TRUE, EstMeth = "ML")
 summary(mf04.glmssn0)
 ```
 
@@ -117,7 +117,7 @@ The summary shows that, in the spatial model, slope is not significant anymore. 
 ```{r}
 mf04.glmssn1 <- glmssn(Summer_mn ~ ELEV_DEM + SLOPE, mf04p,
    CorModels = c("Exponential.tailup", "Exponential.taildown",
-      "Exponential.Euclid"), addfunccol = "afvArea")
+      "Exponential.Euclid"), addfunccol = "afvArea", EstMeth = "ML")
 summary(mf04.glmssn1)
 
 ```
@@ -125,16 +125,21 @@ summary(mf04.glmssn1)
 ```{r}
 mf04.glmssn2 <- glmssn(Summer_mn ~ ELEV_DEM , mf04p,
    CorModels = c("Exponential.tailup", "Exponential.taildown",
-      "Exponential.Euclid"), addfunccol = "afvArea")
+      "Exponential.Euclid"), addfunccol = "afvArea", EstMeth = "ML")
 
 summary(mf04.glmssn2)
 
 ```
 
+```{r}
+varcomp(mf04.glmssn2)
+```
+
+
 ### We fit a third model, this timee exlcuding the Euclidean autocovariance function.
 ```{r}
 mf04.glmssn3 <- glmssn(Summer_mn ~ ELEV_DEM , mf04p,
-   CorModels = c("Exponential.tailup", "Exponential.taildown"), addfunccol = "afvArea")
+   CorModels = c("Exponential.tailup", "Exponential.taildown"), addfunccol = "afvArea", EstMeth = "ML")
 summary(mf04.glmssn3)
 ```
 
@@ -188,7 +193,10 @@ plot(mf04.glmssn1.Knapp, "Summer_mn", add = TRUE,
 
 $$\\[1.1in]$$
 
-# We have modelled water temperature using gaussian distribution (the default).
+# Excercise
+
+
+## We have modelled water temperature using gaussian distribution (the default).
 
 ## However, the glmssn allows different distribution of the response variable, including binomial and poisson (counts).
 
@@ -199,11 +207,16 @@ The mf04p dataset also contains a variable (*C16*) reporting the number of days 
 mf04p@obspoints@SSNPoints[[1]]@point.data$C16
 ```
 
-
-### In SSN we can include the line: family = "poisson" in the *glmssn* call,  as in standard *glm* models.
-
 ## You can try yourself:
 
-* fit a poisson model for the variable *C16* using again elevation and slope as covariates.
-* select the most supported model (including or excluding covariates, changing the autocovariance functions).
-* predict the *C16* over the prediction locations using your model.
+* Fit a poisson model for the variable *C16* using again elevation and slope as covariates.
+* Exclude non-significant predictors.
+* Predict the *C16* over the prediction locations (e.g. Knapp stream) using your model.
+
+
+## TIP
+In SSN we can include the line: family = "poisson" in the *glmssn* call,  as in standard *glm* models.
+
+Then you can use the examples already provided to make prediction on the Knapp stream.
+
+

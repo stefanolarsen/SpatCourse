@@ -377,7 +377,7 @@ $$\\[0.7in]$$
 
 
 ### TIP
-to plot the variogram over the three distances, use the example already provided. For *feed_pre* for instance:
+to plot the variogram over the three distances, use the example already provided. For *feed_pre* for instance you calculate the empirical variogram and the torgegram:
 ```{r}
 emp.var.pre=EmpiricalSemivariogram(spat.course.ssn, 'feed_pre', nlag = 30, maxlag = 200000)
 tor.pre=Torgegram(spat.course.ssn, 'feed_pre', nlag = 50, maxlag = 400000)
